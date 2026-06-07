@@ -20,6 +20,15 @@ def wait_and_find_element(driver, by, selector, timeout=10):
     )
 
 
+def wait_and_click(driver, by, selector, timeout=10):
+    """Ожидает кликабельности элемента и кликает"""
+    element = WebDriverWait(driver, timeout).until(
+        EC.element_to_be_clickable((by, selector))
+    )
+    driver.execute_script("arguments[0].click();", element)
+    return element
+
+
 # ============================================================
 # Тест на ДЕФЕКТ №1: Баланс не обновляется после перевода
 # ============================================================
@@ -36,10 +45,9 @@ def test_balance_not_updated_after_transfer_rub(driver, base_url):
     wait_and_find_element(driver, By.TAG_NAME, "h1")
     
     # 1. Выбираем карточку "Рубли"
-    rub_card = driver.find_element(By.XPATH, "//h2[text()='Рубли']/..")
-    driver.execute_script("arguments[0].click();", rub_card)  # клик через JS надёжнее
+    rub_card = wait_and_click(driver, By.XPATH, "//h2[text()='Рубли']/..")
     
-    time.sleep(0.5)  # небольшая пауза для React
+    time.sleep(0.5)
     
     # 2. Вводим номер карты
     card_input = wait_and_find_element(driver, By.CSS_SELECTOR, "input[placeholder='0000 0000 0000 0000']")
@@ -48,7 +56,6 @@ def test_balance_not_updated_after_transfer_rub(driver, base_url):
     
     # 3. Вводим сумму перевода
     amount_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='text']")
-    # Фильтруем: нам нужен input для суммы (не для карты)
     amount_input = None
     for inp in amount_inputs:
         if inp.get_attribute("placeholder") != "0000 0000 0000 0000":
@@ -56,7 +63,7 @@ def test_balance_not_updated_after_transfer_rub(driver, base_url):
             break
     
     if amount_input is None:
-        amount_input = amount_inputs[1]  # fallback
+        amount_input = amount_inputs[1]
     
     amount_input.clear()
     amount_input.send_keys("500")
@@ -66,18 +73,8 @@ def test_balance_not_updated_after_transfer_rub(driver, base_url):
     balance_text = balance_span.text.replace("'", "").replace(" ", "").replace("₽", "").strip()
     balance_before = int(balance_text) if balance_text.isdigit() else 0
     
-    # 5. Находим и нажимаем кнопку "Перевести"
-    # Пробуем несколько вариантов локаторов
-    transfer_btn = None
-    try:
-        transfer_btn = driver.find_element(By.XPATH, "//button[contains(text(),'Перевести')]")
-    except:
-        try:
-            transfer_btn = driver.find_element(By.XPATH, "//button[contains(.,'Перевести')]")
-        except:
-            transfer_btn = driver.find_element(By.CSS_SELECTOR, "button[type='button']")
-    
-    driver.execute_script("arguments[0].click();", transfer_btn)
+    # 5. Нажимаем кнопку "Перевести"
+    transfer_btn = wait_and_click(driver, By.XPATH, "//button[contains(text(),'Перевести')]")
     
     # 6. Закрываем алерт (если появился)
     try:
@@ -87,14 +84,13 @@ def test_balance_not_updated_after_transfer_rub(driver, base_url):
     except:
         pass
     
-    time.sleep(1)  # даём время на возможное обновление
+    time.sleep(1)
     
     # 7. Получаем баланс после перевода
     balance_after_text = balance_span.text.replace("'", "").replace(" ", "").replace("₽", "").strip()
     balance_after = int(balance_after_text) if balance_after_text.isdigit() else 0
     
     # 8. Ожидание: баланс должен уменьшиться
-    # Реальность: баланс не меняется → тест падает
     assert balance_after < balance_before, \
         f"БАГ! Баланс не обновился: было {balance_before}, стало {balance_after}"
 
@@ -115,17 +111,17 @@ def test_transfer_more_than_balance_usd(driver):
     wait_and_find_element(driver, By.TAG_NAME, "h1")
     
     # 1. Выбираем карточку "Доллары"
-    usd_card = driver.find_element(By.XPATH, "//h2[text()='Доллары']/..")
-    driver.execute_script("arguments[0].click();", usd_card)
+    usd_card = wait_and_click(driver, By.XPATH, "//h2[text()='Доллары']/..")
     
-    time.sleep(0.5)
+    # 2. Ждём появления формы перевода
+    wait_and_find_element(driver, By.XPATH, "//h3[contains(text(),'Перевод на карту')]")
     
-    # 2. Вводим номер карты
+    # 3. Вводим номер карты
     card_input = wait_and_find_element(driver, By.CSS_SELECTOR, "input[placeholder='0000 0000 0000 0000']")
     card_input.clear()
     card_input.send_keys("1234567890123456")
     
-    # 3. Вводим сумму 100 $ (при балансе 100 $ и комиссии 10 % должно быть недостаточно)
+    # 4. Вводим сумму 100 $ (при балансе 100 $ и комиссии 10% должно быть недостаточно)
     amount_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='text']")
     amount_input = None
     for inp in amount_inputs:
@@ -141,31 +137,39 @@ def test_transfer_more_than_balance_usd(driver):
     
     time.sleep(0.5)
     
-    # 4. Нажимаем "Перевести"
+    # 5. Ждём появления и нажимаем кнопку "Перевести"
     try:
-        transfer_btn = driver.find_element(By.XPATH, "//button[contains(text(),'Перевести')]")
+        transfer_btn = WebDriverWait(driver, 5).until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Перевести')]"))
+        )
+        driver.execute_script("arguments[0].click();", transfer_btn)
     except:
-        transfer_btn = driver.find_element(By.CSS_SELECTOR, "button[type='button']")
-    
-    driver.execute_script("arguments[0].click();", transfer_btn)
+        # Если кнопка не найдена — пробуем другой локатор
+        transfer_btn = WebDriverWait(driver, 5).until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(.,'Перевести')]"))
+        )
+        driver.execute_script("arguments[0].click();", transfer_btn)
     
     time.sleep(1)
     
-    # 5. Проверяем, появилась ли ошибка
-    # Сначала пробуем найти текст ошибки на странице
+    # 6. Проверяем, появилась ли ошибка
+    # Способ 1: ищем текст ошибки на странице
     page_source = driver.page_source
-    has_error = "Недостаточно средств" in page_source
+    has_error_on_page = "Недостаточно средств" in page_source
     
-    # Если алерт — проверяем его
+    # Способ 2: проверяем алерт
+    has_alert_error = False
     try:
         alert = driver.switch_to.alert
         alert_text = alert.text
+        has_alert_error = "недостаточно" in alert_text.lower() or "не хватает" in alert_text.lower()
         alert.accept()
-        has_error = has_error or ("недостаточно" in alert_text.lower())
     except:
         pass
     
-    # 6. Ожидание: должна быть ошибка
+    has_error = has_error_on_page or has_alert_error
+    
+    # 7. Ожидание: должна быть ошибка
     # Реальность: ошибки нет → тест падает
     assert has_error, \
-        "БАГ! Нет ошибки 'Недостаточно средств' при переводе с превышением для долларов"
+        "БАГ! Нет ошибки 'Недостаточно средств' при переводе 100$ с балансом 100$ (комиссия 10$)"
