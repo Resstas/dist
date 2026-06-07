@@ -4,18 +4,15 @@ from selenium.webdriver.chrome.options import Options
 
 @pytest.fixture
 def driver():
-    """Запускает Chrome в headless-режиме для CI"""
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
-    options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_experimental_option("excludeSwitches", ["enable-logging"])
     
     driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(30)
     driver.implicitly_wait(5)
     
     yield driver
@@ -25,5 +22,4 @@ def driver():
 
 @pytest.fixture
 def base_url():
-    """Базовый URL для тестов"""
     return "http://localhost:8000/?balance=30000&reserved=20001"

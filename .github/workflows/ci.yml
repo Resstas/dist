@@ -1,9 +1,7 @@
-name: CI Tests (Expected FAIL - Bugs Found)
+name: CI Tests (Expected FAIL)
 
 on:
   push:
-    branches: [main, master]
-  pull_request:
     branches: [main, master]
 
 jobs:
@@ -11,48 +9,25 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
+      
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
+      
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-          pip install pytest selenium webdriver-manager
-
+          pip install pytest selenium
+      
       - name: Setup Chrome
         uses: browser-actions/setup-chrome@v1
-        with:
-          chrome-version: stable
-
-      - name: Start F-Bank server
+      
+      - name: Start server
         run: |
-          # Запускаем сервер из папки public (или из корня, если index.html там)
-          if [ -d "public" ]; then
-            cd public
-          fi
+          if [ -d "public" ]; then cd public; fi
           python3 -m http.server 8000 &
-          sleep 3
-          curl -s http://localhost:8000/ | head -n 5 || echo "Сервер не запустился!"
-
-      - name: Run Selenium tests
-        run: |
-          pytest tests/ -v --tb=short
-        continue-on-error: false   # не игнорируем ошибки — они нужны для красной сборки
-
-      - name: CI Result
-        if: always()
-        run: |
-          echo "============================================================"
-          echo "🔴 СБОРКА КРАСНАЯ — ЭТО НОРМАЛЬНО ПО ЗАДАНИЮ 🔴"
-          echo ""
-          echo "Найдены дефекты:"
-          echo "1. Баланс не обновляется после перевода"
-          echo "2. Нет проверки средств для долларов и евро"
-          echo ""
-          echo "Автотесты упали — значит, баги воспроизведены автоматически"
-          echo "============================================================"
+          sleep 5
+      
+      - name: Run tests
+        run: pytest tests/ -v
