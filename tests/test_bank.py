@@ -2,8 +2,8 @@
 Автотесты для F-Bank
 
 Оба теста должны УПАСТЬ, так как выявляют реальные дефекты:
-- Дефект №1: Баланс не обновляется после перевода
-- Дефект №2: Проверка средств отсутствует для долларов и евро
+- Дефект №1: Баланс не обновляется после перевода (все валюты)
+- Дефект №2: Проверка средств отсутствует для Евро
 """
 
 import time
@@ -20,22 +20,23 @@ from selenium.webdriver.support import expected_conditions as EC
 def test_balance_not_updated_after_transfer_rub(driver, base_url):
     """
     Баг-репорт №1: Баланс на странице не обновляется после перевода
+    Ожидание: баланс уменьшается
+    Реальность: баланс остаётся прежним → тест падает
     """
     driver.get(base_url)
     
-    # Ждём загрузки страницы (появление заголовка)
+    # Ждём загрузки страницы
     WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.TAG_NAME, "h1"))
     )
     
-    time.sleep(1)  # даём React время на рендер
+    time.sleep(1)
     
     # 1. Кликаем по карточке "Рубли"
     rub_cards = driver.find_elements(By.XPATH, "//h2[text()='Рубли']")
     if rub_cards:
         rub_cards[0].click()
     else:
-        # Альтернативный вариант
         driver.find_element(By.XPATH, "//h2[contains(text(),'Рубли')]").click()
     
     time.sleep(0.5)
@@ -70,6 +71,7 @@ def test_balance_not_updated_after_transfer_rub(driver, base_url):
     # 4. Получаем баланс ДО
     balance_spans = driver.find_elements(By.CSS_SELECTOR, "span[id$='-sum']")
     balance_before = None
+    balance_span = None
     for span in balance_spans:
         text = span.text.replace("'", "").replace(" ", "").replace("₽", "").replace("$", "").replace("€", "").strip()
         if text.isdigit():
@@ -78,7 +80,7 @@ def test_balance_not_updated_after_transfer_rub(driver, base_url):
             break
     
     if balance_before is None:
-        balance_before = 30000  # fallback
+        balance_before = 30000
     
     # 5. Нажимаем кнопку "Перевести"
     buttons = driver.find_elements(By.TAG_NAME, "button")
@@ -107,20 +109,21 @@ def test_balance_not_updated_after_transfer_rub(driver, base_url):
     balance_after = int(balance_after_text) if balance_after_text.isdigit() else balance_before
     
     # 8. ПРОВЕРКА: баланс должен уменьшиться
-    # Если баланс не изменился — тест падает (это и есть БАГ)
     assert balance_after < balance_before, \
-        f"БАГ! Баланс не обновился после перевода: было {balance_before}, стало {balance_after}"
+        f"БАГ! Баланс не обновился: было {balance_before}, стало {balance_after}"
 
 
 # ============================================================
-# Тест на ДЕФЕКТ №2: Отсутствие проверки средств для долларов
+# Тест на ДЕФЕКТ №2: Отсутствие проверки средств для ЕВРО
 # ============================================================
 
-def test_transfer_more_than_balance_usd(driver):
+def test_transfer_more_than_balance_eur(driver):
     """
-    Баг-репорт №2: Нет проверки средств для долларов
+    Баг-репорт №2: Проверка средств отсутствует для ЕВРО
+    Ожидание: ошибка "Недостаточно средств"
+    Реальность: перевод проходит → тест падает
     """
-    driver.get("http://localhost:8000/?balance=100&reserved=0")
+    driver.get("http://localhost:8000/?balance=300&reserved=26")
     
     WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.TAG_NAME, "h1"))
@@ -128,12 +131,12 @@ def test_transfer_more_than_balance_usd(driver):
     
     time.sleep(1)
     
-    # 1. Кликаем по карточке "Доллары"
-    usd_cards = driver.find_elements(By.XPATH, "//h2[text()='Доллары']")
-    if usd_cards:
-        usd_cards[0].click()
+    # 1. Кликаем по карточке "Евро"
+    eur_cards = driver.find_elements(By.XPATH, "//h2[text()='Евро']")
+    if eur_cards:
+        eur_cards[0].click()
     else:
-        driver.find_element(By.XPATH, "//h2[contains(text(),'Доллар')]").click()
+        driver.find_element(By.XPATH, "//h2[contains(text(),'Евро')]").click()
     
     time.sleep(0.5)
     
@@ -151,7 +154,7 @@ def test_transfer_more_than_balance_usd(driver):
     
     time.sleep(0.5)
     
-    # 3. Вводим сумму 100 $ (при балансе 100 $ и комиссии 10% не хватает)
+    # 3. Вводим сумму (300 € при балансе 300 € и резерве 26 € = доступно 274 €)
     amount_input = None
     for inp in card_inputs:
         if inp != card_input:
@@ -160,7 +163,7 @@ def test_transfer_more_than_balance_usd(driver):
     
     if amount_input:
         amount_input.clear()
-        amount_input.send_keys("100")
+        amount_input.send_keys("300")
     
     time.sleep(0.5)
     
@@ -191,6 +194,5 @@ def test_transfer_more_than_balance_usd(driver):
         pass
     
     # 6. ПРОВЕРКА: должна быть ошибка
-    # Если ошибки нет — тест падает (это и есть БАГ)
     assert has_error, \
-        "БАГ! Нет ошибки 'Недостаточно средств' при переводе 100$ с балансом 100$ (комиссия 10$)"
+        "БАГ! Нет ошибки 'Недостаточно средств' при переводе 300€ с балансом 300€ и резервом 26€"

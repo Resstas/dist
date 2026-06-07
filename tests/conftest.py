@@ -4,6 +4,7 @@ from selenium.webdriver.chrome.options import Options
 
 @pytest.fixture
 def driver():
+    """Запускает Chrome в headless-режиме для CI"""
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
@@ -24,4 +25,5 @@ def driver():
 
 @pytest.fixture
 def base_url():
+    """Базовый URL для тестов"""
     return "http://localhost:8000/?balance=30000&reserved=20001"
