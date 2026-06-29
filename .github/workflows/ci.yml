@@ -31,7 +31,6 @@ jobs:
       
       - name: Run tests
         id: tests
-        continue-on-error: true
         run: pytest tests/ -v
       
       - name: Create Bug Report
